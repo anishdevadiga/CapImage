@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(const MyApp());
@@ -93,12 +94,6 @@ class _CaptionPageState extends State<CaptionPage> {
   String? responseText;
   bool _isLoading = false;
 
-  // Initialize the Gemini model
-  final model = GenerativeModel(
-    model: 'gemini-1.5-flash',
-    apiKey: "AIzaSyCnGLrMegmnfFKs4xzifuE_Lgonz2f9xPQ", // Replace with your actual API key
-  );
-
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -118,16 +113,25 @@ class _CaptionPageState extends State<CaptionPage> {
     });
 
     try {
-      // Assume model.generateCaption is the method to generate caption from image
-      final content = Content.image(imageFile: _imageFile!);
-      final response = await model.generateContent([content]);
+      // Replace with the actual API URL and key
+      final url = Uri.parse('https://api.example.com/generate_caption');
+      final request = http.MultipartRequest('POST', url)
+        ..headers.addAll({'Authorization': 'Bearer YOUR_API_KEY'})
+        ..files.add(await http.MultipartFile.fromPath('image', _imageFile!.path));
 
-      setState(() {
-        responseText = response?.text;
-        _isLoading = false;
-      });
+      final response = await request.send();
 
-      print('API Response: ${response?.text}');
+      if (response.statusCode == 200) {
+        final responseBody = await response.stream.bytesToString();
+        final jsonResponse = json.decode(responseBody);
+
+        setState(() {
+          responseText = jsonResponse['caption'];
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to generate caption');
+      }
     } catch (error, stackTrace) {
       setState(() {
         responseText = 'Error: $error';
@@ -211,7 +215,8 @@ class _CaptionPageState extends State<CaptionPage> {
               ElevatedButton(
                 onPressed: () {
                   if (responseText != null) {
-                    Clipboard.setData(ClipboardData(text: responseText));
+                    String str = responseText.toString();
+                    Clipboard.setData(ClipboardData(text: str));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Caption copied to clipboard!'),
